@@ -1,5 +1,4 @@
 var RedshiftCopyS3 = require('../lib/RedshiftCopyS3.js');
-var FlushOperation = RedshiftCopyS3.FlushOperation;
 var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
@@ -8,6 +7,7 @@ var _l = require('lodash');
 var PolyMock = require('polymock');
 var dbStuff = require('db-stuff');
 var EventEmitter = require('events').EventEmitter;
+var testutil = require('./lib/testutil.js')
 
 var testroot = path.join(__dirname, 'testfiles');
 var logfile = path.join(testroot, 'testlog');
@@ -28,10 +28,6 @@ var awsOptions = {
 	bucket: 'asd'
 };
 
-var EXPECTED_FILENAME = 'lala.log';
-var EXPECTED_KEY = 'test/' + EXPECTED_FILENAME;
-var EXPECTED_COPY_QUERY = 'copy 123';
-var EXPECTED_BUCKET = 'mybucket';
 
 function createMock(threshold) {
 	var mock = PolyMock.create();
@@ -42,9 +38,9 @@ function createMock(threshold) {
 	mock.createMethod('_startIdleFlushMonitor');
 	mock.createMethod('_stopIdleFlushMonitor');
 	mock.createMethod('flush', mock.dummy);
-	mock.createMethod('_generateFilename', EXPECTED_FILENAME);
-	mock.createMethod('_generateCopyQuery', EXPECTED_COPY_QUERY);
-	mock.createMethod('_generateKey', EXPECTED_KEY);
+	mock.createMethod('_generateFilename', testutil.EXPECTED_FILENAME);
+	mock.createMethod('_generateCopyQuery', testutil.EXPECTED_COPY_QUERY);
+	mock.createMethod('_generateKey', testutil.EXPECTED_KEY);
 	mock.createMethod('_newFlushOperation', mock.dummy);
 	mock.createMethod('_uuid', '123');
 	mock.createMethod('_now', 'now');
@@ -53,10 +49,10 @@ function createMock(threshold) {
 
 	mock.createProperty('_fields', [ 'a', 'b' ]);
 	mock.createProperty('_awsOptions', { accessKeyId: '1', secretAccessKey: '2' });
-	mock.createProperty('_bucket', EXPECTED_BUCKET);
+	mock.createProperty('_bucket', testutil.EXPECTED_BUCKET);
 	mock.createProperty('_buffer', []);
 	mock.createProperty('_currentBufferLength', 0);
-	mock.createProperty('activeFlushOps', 0);
+	mock.createProperty('activeFlushOperations', 0);
 	mock.createProperty('delimiter', '|');
 	mock.createProperty('_threshold', threshold);
 	mock.createProperty('_keyPrefix', 'prefix');
@@ -68,14 +64,6 @@ function createMock(threshold) {
 	mock.createProperty('_s3ClientProvider', { get: function() {
 		return {};
 	}});
-
-	return mock;
-}
-
-function createDatastoreMock() {
-	var mock = PolyMock.create();
-
-	mock.createMethod('query', undefined, { callbackArgs: [null, []] });
 
 	return mock;
 }
@@ -103,7 +91,7 @@ describe('RedshiftCopyS3', function() {
 
 		it('throws an error if no s3 client provider is specified', function () {
 			try {
-				var rbl = new RedshiftCopyS3(createDatastoreMock());
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock());
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'missing s3 client provider');
@@ -112,7 +100,7 @@ describe('RedshiftCopyS3', function() {
 
 		it('throws an error if no options are specified', function () {
 			try {
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock());
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock());
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'missing options');
@@ -121,7 +109,7 @@ describe('RedshiftCopyS3', function() {
 
 		it('throws an error if no table name is not supplied in the options', function () {
 			try {
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock(),  {});
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock(),  {});
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'missing or invalid table name');
@@ -130,7 +118,7 @@ describe('RedshiftCopyS3', function() {
 
 		it('throws an error if fields are missing in options', function () {
 			try {
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock(), { tableName: '123' });
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock(), { tableName: '123' });
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'missing fields');
@@ -139,7 +127,7 @@ describe('RedshiftCopyS3', function() {
 
 		it('throws an error if fields are missing in options', function () {
 			try {
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock(), { tableName: '123', fields: [] });
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock(), { tableName: '123', fields: [] });
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'missing fields');
@@ -147,9 +135,9 @@ describe('RedshiftCopyS3', function() {
 		});
 
 		it('throws an error if threshold is set to 0', function () {
-				try {
+			try {
 				var options = { idleFlushPeriod: 0, tableName: 'asdlj', fields: [ '1' ], threshold: 0 };
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock(), options);
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock(), options);
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'cannot set threshold to 0');
@@ -159,7 +147,7 @@ describe('RedshiftCopyS3', function() {
 		it('throws an error if idleFlushPeriod is set to 0', function () {
 			try {
 				var options = { idleFlushPeriod: 0, tableName: 'asdlj', fields: [ '1' ], threshold: 10 };
-				var rbl = new RedshiftCopyS3(createDatastoreMock(), createS3ClientProviderMock(), options);
+				var rbl = new RedshiftCopyS3(testutil.createDatastoreMock(), createS3ClientProviderMock(), options);
 				throw new Error('constructor should have thrown an error');
 			} catch (e) {
 				assert.strictEqual(e.message, 'cannot set idleFlushPeriod to 0');
@@ -348,7 +336,7 @@ describe('RedshiftCopyS3', function() {
 
 			assert.strictEqual(mock.object._buffer.length, 0);
 			assert.strictEqual(mock.object._currentBufferLength, 0);
-			assert.strictEqual(mock.object.activeFlushOps, 1);
+			assert.strictEqual(mock.object.activeFlushOperations, 1);
 		});
 
 		it('"copies" the current state of the buffer to a flushop object using the factory method _newFlushOperation', function () {
@@ -365,11 +353,11 @@ describe('RedshiftCopyS3', function() {
 
 			var actual = mock.invocations[mock.invocations.length - 2].arguments;
 
-			assert.strictEqual(actual[0], EXPECTED_BUCKET);
-			assert.strictEqual(actual[1], EXPECTED_KEY);
+			assert.strictEqual(actual[0], testutil.EXPECTED_BUCKET);
+			assert.strictEqual(actual[1], testutil.EXPECTED_KEY);
 			assert.deepEqual(actual[2], expectedBuffer);
 			assert.strictEqual(actual[3], expectedBufferLength);
-			assert.strictEqual(actual[4], EXPECTED_COPY_QUERY);
+			assert.strictEqual(actual[4], testutil.EXPECTED_COPY_QUERY);
 
 		});
 
@@ -390,11 +378,11 @@ describe('RedshiftCopyS3', function() {
 
 			var actual = mock.invocations.pop();
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.operation, 'set');
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.value, 0);
 		});
@@ -416,11 +404,11 @@ describe('RedshiftCopyS3', function() {
 
 			var actual = mock.invocations.pop();
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.operation, 'set');
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.value, 0);
 		});
@@ -442,11 +430,11 @@ describe('RedshiftCopyS3', function() {
 
 			var actual = mock.invocations.pop();
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.operation, 'set');
 
-			assert.strictEqual(actual.property, 'activeFlushOps');
+			assert.strictEqual(actual.property, 'activeFlushOperations');
 
 			assert.strictEqual(actual.value, 0);
 
@@ -458,159 +446,4 @@ describe('RedshiftCopyS3', function() {
 			}
 		});
 	});
-
-	describe('FlushOperation', function () {
-		var topic = RedshiftCopyS3.FlushOperation.prototype;
-
-		function createFlushOperationMock() {
-			var mock = PolyMock.create();
-
-			mock.createProperty('key', EXPECTED_KEY);
-			mock.createProperty('copyQuery', EXPECTED_COPY_QUERY);
-
-			mock.b1 = new Buffer('1, 2, 3');
-			mock.b2 = new Buffer('1, 2, 3');
-
-			mock.createProperty('buffer', [mock.b1, mock.b2]);
-			mock.createProperty('bufferLength', mock.b1.length + mock.b2.length);
-
-			// the following methods of FlushOperation are function generators.
-			// special() is a method that return a function as expected. The returned function is also added to the mock with the same
-			// name as the generator function but with a suffix of Functor, e.g _uploadToS3Functor.
-			// This way when the test calls _uploadToS3 mock, it returns a function that is a mock as well.
-			//
-			// TODO this is actually too complex, and must be implemented differently
-			mock.createMethod('_uploadToS3', special('_uploadToS3'));
-			mock.createMethod('_updateUploadLatency', special('_updateUploadLatency'));
-			mock.createMethod('_updateQueryLatency', special('_updateQueryLatency'));
-			mock.createMethod('_executeCopyQuery', special('_executeCopyQuery'));
-
-
-			mock.createMethod('_prepareBuffer', Buffer.concat([mock.b1, mock.b2]));
-			mock.createMethod('done');
-			mock.createMethod('emit');
-
-			return mock;
-
-			// creates a functor on the mock object that records invocations of returned functions
-			function special(what) {
-				var name = what + 'Functor';
-
-				mock.createMethod(name, undefined);
-
-				return function() {
-					mock.object[name].apply(mock.object, Array.prototype.slice(arguments, 0));
-				}
-			}
-		}
-
-		function createS3Mock() {
-			var mock = PolyMock.create();
-
-			mock.createMethod('put', undefined, { callbackArgs: [null, { statusCode: 200} ] });
-
-			return mock;
-		}
-
-		it('Ctor', function () {
-
-			var expectedBuffer = [new Buffer('1'), new Buffer('2')];
-			var flushOp = new FlushOperation('mybucket', 'mykey', expectedBuffer, 10, EXPECTED_COPY_QUERY);
-
-			assert.strictEqual(flushOp.bucket, 'mybucket');
-			assert.strictEqual(flushOp.key, 'mykey');
-			assert.deepEqual(flushOp.buffer, expectedBuffer);
-			assert.strictEqual(flushOp.bufferLength, 10);
-			assert.strictEqual(flushOp.copyQuery, EXPECTED_COPY_QUERY);
-		});
-
-		it('uploads to s3', function () {
-			var mock = createFlushOperationMock();
-			var s3mock = createS3Mock();
-
-			var functor = topic._uploadToS3.call(mock.object, s3mock.object);
-
-			// call the functor
-			functor(function(err, res) {});
-
-			assert.strictEqual(s3mock.invocations[0].method, 'put');
-			assert.strictEqual(s3mock.invocations[0].arguments[0], EXPECTED_KEY);
-			assert.deepEqual(s3mock.invocations[0].arguments[1], Buffer.concat([mock.b1, mock.b2]));
-			assert.strictEqual(typeof(s3mock.invocations[0].arguments[2]), 'function');
-		});
-
-		it('executes a copy query', function () {
-			var mock = createFlushOperationMock();
-			var datastoreMock = createDatastoreMock();
-
-			var functor = topic._executeCopyQuery.call(mock.object, datastoreMock.object);
-
-			functor('123', function(err, results) {});
-
-			assert.strictEqual(datastoreMock.invocations[0].method, 'query');
-			assert.strictEqual(datastoreMock.invocations[0].arguments[0], EXPECTED_COPY_QUERY);
-		});
-
-		it('executes an async flow when started', function () {
-			var mock = createFlushOperationMock();
-			var dsMock = createDatastoreMock();
-			var s3Mock = createS3Mock();
-
-			topic.start.call(mock.object, s3Mock.object, dsMock.object);
-
-
-			var done = mock.invocations.pop();
-			assert.strictEqual(done.method, 'done');
-
-			// setTimeout(function () {
-			// 	console.log(mock.invocations); done()
-			// }, 1000)
-
-		});
-
-
-	});
 });
-
-function generateExpected(rows, delimiter) {
-	var result = '';
-	for (var i = 0; i < rows; i++) {
-		var expected = [].concat(testRow);
-		expected[expected.length - 1] = '\\N';
-		expected = expected.join(delimiter);
-		expected += '\n';
-		result += expected;
-	}
-
-	return result;
-}
-
-
-function MockS3() {
-	var self = this;
-	this.putObject = function(opts, callback) {
-		self.opts = opts;
-		callback(null, {});
-	}
-
-	this.deleteObject = function(opts, callback) {
-		self.deleteOpts = opts;
-		callback(null, {});
-	}
-
-	this.putBuffer = function(buffer, key, callback) {
-		this.buffer = buffer;
-		this.key = key;
-		callback(null, { statusCode: 200 });
-	}
-
-}
-
-function MockDatastore() {
-	var queries = this.queries = [];
-	this.query = function(sql, callback) {
-		queries.push(sql);
-		callback(null, {});
-	}
-}
-
