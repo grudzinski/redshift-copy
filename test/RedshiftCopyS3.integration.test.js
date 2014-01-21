@@ -17,7 +17,7 @@ var s3Client;
 
 if (!config.aws) {
 	testFunction = describe.skip;
-	console.log('skipping this test since no credentials were supplied (.testrc)');
+	console.log('skipping this test since no credentials were supplied (.testrc and/or .s3shieldrc)');
 } else {
 	s3Client = knox.createClient({
 	    key: 		config.aws.accessKeyId,
