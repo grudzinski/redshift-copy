@@ -63,8 +63,8 @@ describe('Monitor', function () {
 		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
 	})
 
-	it('monitors action flush operations', function () {
-		var listener = topic.activeFlushOperationsListener(copyOp, event)
+	it('monitors active flush operations', function () {
+		var listener = topic.activeFlushOperationsListener(copyOp.object, event)
 
 		listener(flushOp.object)
 
@@ -72,12 +72,37 @@ describe('Monitor', function () {
 
 		var actual = monitorClient.invocations[0].arguments[0]
 
-		console.log(actual)
-
 		assert.strictEqual(actual.service, 'concurrent flush operations')
 		assert.strictEqual(actual.metric, 2)
 		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
 	})
 
+	it('monitors copy query latency', function () {
+		var listener = topic.copyQueryLatencyListener(event)
+
+		listener(flushOp.object)
+
+		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+		var actual = monitorClient.invocations[0].arguments[0]
+
+		assert.strictEqual(actual.service, 'copy query latency')
+		assert.strictEqual(actual.metric, 1)
+		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+	})
+
+	it('monitors upload latency', function () {
+		var listener = topic.uploadLatencyListener(event)
+
+		listener(flushOp.object)
+
+		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+		var actual = monitorClient.invocations[0].arguments[0]
+
+		assert.strictEqual(actual.service, 's3 upload latency')
+		assert.strictEqual(actual.metric, 1)
+		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+	})
 })
 
