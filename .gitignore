@@ -1,3 +1,4 @@
 node_modules
 .testrc
 .s3shieldrc
+npm-debug.log
