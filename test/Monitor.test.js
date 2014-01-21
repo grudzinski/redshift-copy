@@ -34,6 +34,7 @@ function createMonitorClientMock() {
 	return mock
 }
 
+
 describe('Monitor', function () {
 
 	var flushOp, copyOp, monitorClient, topic, event
@@ -49,60 +50,191 @@ describe('Monitor', function () {
 		}
 	})
 
-	it('monitors flush latency', function () {
-		var listener = topic.flushLatencyListener(event)
+	describe('monitors flush latency', function () {
 
-		listener(flushOp.object)
+		it('sends an event', function () {
+			var listener = topic.flushLatencyListener(event)
 
-		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+			listener(flushOp.object)
 
-		var actual = monitorClient.invocations[0].arguments[0]
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
 
-		assert.strictEqual(actual.service, 'flush latency')
-		assert.strictEqual(actual.metric, 2)
-		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'flush latency')
+			assert.strictEqual(actual.metric, 2)
+			assert.strictEqual(actual.state, 'ok')
+			assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+		})
+
+		it('reports warning state when flush latency is higher than the threshold', function () {
+			var listener = topic.flushLatencyListener(event)
+
+			topic._config.flushLatencyThreshold = 1
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'flush latency')
+			assert.strictEqual(actual.state, 'warning')
+		})
+
+		it('reports critical state when flush latency is 3 times higher than the threshold', function () {
+			var listener = topic.flushLatencyListener(event)
+
+			topic._config.flushLatencyThreshold = 0.2
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'flush latency')
+			assert.strictEqual(actual.state, 'critical')
+		})
 	})
 
-	it('monitors active flush operations', function () {
-		var listener = topic.activeFlushOperationsListener(copyOp.object, event)
+	describe('monitors active flush operations', function () {
 
-		listener(flushOp.object)
+		it('sends an event', function () {
+			var listener = topic.activeFlushOperationsListener(copyOp.object, event)
 
-		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+			listener(flushOp.object)
 
-		var actual = monitorClient.invocations[0].arguments[0]
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
 
-		assert.strictEqual(actual.service, 'concurrent flush operations')
-		assert.strictEqual(actual.metric, 2)
-		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'concurrent flush operations')
+			assert.strictEqual(actual.metric, 2)
+			assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+		})
+
+		it('reports warning state when active flush ops are higher than the threshold', function () {
+			var listener = topic.activeFlushOperationsListener(copyOp.object, event)
+
+			topic._config.activeFlushOpsThreshold = 1
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'concurrent flush operations')
+			assert.strictEqual(actual.state, 'warning')
+		})
+
+		it('reports critical state when active flush ops are 3 times higher than the threshold', function () {
+			var listener = topic.activeFlushOperationsListener(copyOp.object, event)
+
+			topic._config.activeFlushOpsThreshold = 0.2
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'concurrent flush operations')
+			assert.strictEqual(actual.state, 'critical')
+		})
 	})
 
-	it('monitors copy query latency', function () {
-		var listener = topic.copyQueryLatencyListener(event)
+	describe('monitors copy query latency', function () {
+		it('sends an event', function () {
+			var listener = topic.copyQueryLatencyListener(event)
 
-		listener(flushOp.object)
+			listener(flushOp.object)
 
-		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
 
-		var actual = monitorClient.invocations[0].arguments[0]
+			var actual = monitorClient.invocations[0].arguments[0]
 
-		assert.strictEqual(actual.service, 'copy query latency')
-		assert.strictEqual(actual.metric, 1)
-		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+			assert.strictEqual(actual.service, 'copy query latency')
+			assert.strictEqual  (actual.metric, 1)
+			assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+		})
+
+		it('reports warning state when copy query latency is higher than the threshold', function () {
+			var listener = topic.copyQueryLatencyListener(event)
+
+			topic._config.queryLatencyThreshold = 0.5
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'copy query latency')
+			assert.strictEqual(actual.state, 'warning')
+		})
+
+		it('reports critical state when copy query latency is 3 times higher than the threshold', function () {
+			var listener = topic.copyQueryLatencyListener(event)
+
+			topic._config.queryLatencyThreshold = 0.2
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 'copy query latency')
+			assert.strictEqual(actual.state, 'critical')
+		})
 	})
 
-	it('monitors upload latency', function () {
-		var listener = topic.uploadLatencyListener(event)
+	describe('monitors upload latency', function () {
+		it('sends an event', function () {
+			var listener = topic.uploadLatencyListener(event)
 
-		listener(flushOp.object)
+			listener(flushOp.object)
 
-		assert.strictEqual(monitorClient.invocations[0].method, 'send')
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
 
-		var actual = monitorClient.invocations[0].arguments[0]
+			var actual = monitorClient.invocations[0].arguments[0]
 
-		assert.strictEqual(actual.service, 's3 upload latency')
-		assert.strictEqual(actual.metric, 1)
-		assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+			assert.strictEqual(actual.service, 's3 upload latency')
+			assert.strictEqual(actual.metric, 1)
+			assert.deepEqual(actual.tags, ['performance', 'database', 'some_event'])
+		})
+
+		it('reports warning state when copy query latency is higher than the threshold', function () {
+			var listener = topic.uploadLatencyListener(event)
+
+			topic._config.uploadLatencyThreshold = 0.5
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 's3 upload latency')
+			assert.strictEqual(actual.state, 'warning')
+		})
+
+		it('reports critical state when copy query latency is 3 times higher than the threshold', function () {
+			var listener = topic.uploadLatencyListener(event)
+
+			topic._config.uploadLatencyThreshold = 0.2
+
+			listener(flushOp.object)
+
+			assert.strictEqual(monitorClient.invocations[0].method, 'send')
+
+			var actual = monitorClient.invocations[0].arguments[0]
+
+			assert.strictEqual(actual.service, 's3 upload latency')
+			assert.strictEqual(actual.state, 'critical')
+		})
 	})
 })
 
