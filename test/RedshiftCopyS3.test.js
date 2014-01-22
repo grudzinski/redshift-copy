@@ -413,37 +413,37 @@ describe('RedshiftCopyS3', function() {
 			assert.strictEqual(actual.value, 0);
 		});
 
-		it('will fail if code tries to decrease the flush op count more than once', function () {
+		// it.skip('will fail if code tries to decrease the flush op count more than once', function () {
 
-			var mock = createMock(2);
+		// 	var mock = createMock(2);
 
-			var expectedBuffer = [ '1|2|3\n', '1|2|3\n' ];
-			var expectedBufferLength = 9999;
+		// 	var expectedBuffer = [ '1|2|3\n', '1|2|3\n' ];
+		// 	var expectedBufferLength = 9999;
 
-			mock.createProperty('_buffer', expectedBuffer);
-			mock.createProperty('_currentBufferLength', expectedBufferLength);
+		// 	mock.createProperty('_buffer', expectedBuffer);
+		// 	mock.createProperty('_currentBufferLength', expectedBufferLength);
 
-			var flushOp = RedshiftCopyS3.prototype.flush.call(mock.object);
-			assert.strictEqual(flushOp, mock.dummy);
+		// 	var flushOp = RedshiftCopyS3.prototype.flush.call(mock.object);
+		// 	assert.strictEqual(flushOp, mock.dummy);
 
-			flushOp.emit('error');
+		// 	flushOp.emit('error');
 
-			var actual = mock.invocations.pop();
+		// 	var actual = mock.invocations.pop();
 
-			assert.strictEqual(actual.property, 'activeFlushOperations');
+		// 	assert.strictEqual(actual.property, 'activeFlushOperations');
 
-			assert.strictEqual(actual.operation, 'set');
+		// 	assert.strictEqual(actual.operation, 'set');
 
-			assert.strictEqual(actual.property, 'activeFlushOperations');
+		// 	assert.strictEqual(actual.property, 'activeFlushOperations');
 
-			assert.strictEqual(actual.value, 0);
+		// 	assert.strictEqual(actual.value, 0);
 
-			try {
-				flushOp.emit('error');
-				throw new Error('this should have failed');
-			} catch(e) {
-				assert.ok(e);
-			}
-		});
+		// 	try {
+		// 		flushOp.emit('error');
+		// 		throw new Error('this should have failed');
+		// 	} catch(e) {
+		// 		assert.ok(e);
+		// 	}
+		// });
 	});
 });
