@@ -236,5 +236,31 @@ describe('Monitor', function () {
 			assert.strictEqual(actual.state, 'critical')
 		})
 	})
+
+	it('exceptionListener', function() {
+
+		var mockSendCallCount = 0
+
+		var mock = {
+
+			send: function(event) {
+				assert.strictEqual(event.service, 'testExceptionService')
+				assert.strictEqual(event.description, '\'testError\'')
+				assert.strictEqual(event.metric, 1)
+				assert.strictEqual(event.ttl, 60 * 60)
+				assert.deepEqual(event.tags, ["testTags","error","testExceptionService"])
+				mockSendCallCount++
+			}
+
+		}
+
+		var callback = Monitor.prototype.exceptionListener.call(mock, 'testExceptionService', ['testTags'])
+
+		callback('testError')
+
+		assert.strictEqual(mockSendCallCount, 1)
+
+	})
+
 })
 
